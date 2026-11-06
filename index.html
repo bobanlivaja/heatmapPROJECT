@@ -1,0 +1,589 @@
+<!DOCTYPE html>
+<html lang="en-AU">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The Heat Tracker – Fairfield (Demo)</title>
+<style>
+/* ===== Design tokens (match the slides) ===== */
+:root{
+  --indigo:#2B3990; --pink:#E0698F; --magenta:#C13F66; --plum:#8E2B4E;
+  --bg:#F4F5FB; --ink:#1d2147; --muted:#5b6082; --line:#dfe2f2; --cool:#2f9e6f; --hot:#c8352f;
+  font-family: system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+}
+*{box-sizing:border-box;margin:0}
+[hidden]{display:none!important}
+body{background:var(--bg);color:var(--ink);line-height:1.45;min-height:100vh}
+button{font:inherit;color:inherit;cursor:pointer;border:0;background:none;min-height:44px;min-width:44px;transition:transform .12s,background .15s,box-shadow .15s}
+button:active{transform:scale(.96)}
+button:focus-visible,input:focus-visible{outline:3px solid var(--pink);outline-offset:2px}
+
+/* ===== Page layout ===== */
+.page{max-width:1000px;margin:0 auto;padding:28px 16px;display:grid;grid-template-columns:1fr 390px;gap:40px;align-items:center}
+.info h1{font-size:2.6rem;color:var(--indigo);letter-spacing:-.02em;line-height:1.05}
+.info .tag{font-size:1.2rem;color:var(--magenta);font-weight:700;margin:10px 0 14px}
+.info p{color:var(--muted);max-width:42ch;margin-bottom:10px}
+.pill{display:inline-block;background:var(--indigo);color:#fff;border-radius:99px;padding:4px 12px;font-size:.8rem;font-weight:700;margin-bottom:14px}
+
+/* ===== Phone frame ===== */
+.phone{width:390px;height:780px;background:#fff;border-radius:44px;border:10px solid #151a3d;box-shadow:0 30px 60px rgba(43,57,144,.25);position:relative;overflow:hidden;display:flex;flex-direction:column}
+.screens{flex:1;position:relative;overflow:hidden}
+.screen{position:absolute;inset:0;overflow-y:auto;opacity:0;transform:translateX(24px);pointer-events:none;transition:opacity .3s,transform .3s;background:#fff}
+.screen.on{opacity:1;transform:none;pointer-events:auto}
+.demo-badge{position:absolute;top:10px;left:50%;transform:translateX(-50%);z-index:30;background:var(--magenta);color:#fff;font-size:.7rem;font-weight:800;padding:3px 10px;border-radius:99px;pointer-events:none}
+.tabs{display:flex;border-top:1px solid var(--line);background:#fff}
+.tabs button{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:.72rem;font-weight:600;color:var(--muted);padding:6px 0;gap:2px}
+.tabs button svg{width:22px;height:22px}
+.tabs button[aria-selected=true]{color:var(--indigo)}
+.tabs button[aria-selected=true] svg{color:var(--magenta)}
+
+/* ===== Map screen ===== */
+#screen-map{overflow:hidden;background:#d9deef}
+#mapsvg{width:100%;height:100%;display:block;touch-action:none;cursor:grab;user-select:none}
+#mapsvg:active{cursor:grabbing}
+#world{transform-origin:0 0}
+#world.glide{transition:transform .7s cubic-bezier(.3,.7,.2,1)}
+.search{position:absolute;top:34px;left:12px;right:12px;z-index:10}
+.search input{width:100%;height:46px;border-radius:23px;border:0;padding:0 18px 0 44px;font-size:1rem;box-shadow:0 4px 14px rgba(43,57,144,.2);background:#fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='20' fill='none' stroke='%232B3990' stroke-width='2.5' stroke-linecap='round'%3E%3Ccircle cx='8' cy='8' r='6'/%3E%3Cpath d='M13 13l5 5'/%3E%3C/svg%3E") 15px center no-repeat}
+.poster{position:absolute;top:88px;left:12px;right:68px;z-index:9;background:var(--indigo);color:#fff;border-radius:14px;padding:6px 10px;display:flex;align-items:center;gap:8px;text-align:left;box-shadow:0 4px 12px rgba(0,0,0,.2);min-height:50px;border:2px solid #fff}
+.poster b{font-size:.82rem;line-height:1.1;display:block}
+.poster small{font-size:.68rem;opacity:.9}
+.poster svg{width:30px;height:30px;flex:none}
+.side{position:absolute;right:12px;top:88px;z-index:17;display:flex;flex-direction:column;gap:8px;align-items:center}
+.fab{width:46px;height:46px;border-radius:50%;background:#fff;box-shadow:0 3px 10px rgba(0,0,0,.2);display:grid;place-items:center;color:var(--indigo);font-weight:800;font-size:1.3rem}
+.fab:hover{background:var(--bg)}
+.fab svg{width:22px;height:22px}
+.fab.dev{font-size:.7rem;background:#151a3d;color:#fff}
+.fab.dev[aria-expanded=true]{background:var(--magenta)}
+#compass svg{transition:transform .6s}
+.viewtoggle{position:absolute;right:12px;bottom:12px;z-index:9;background:#fff;border-radius:22px;box-shadow:0 3px 10px rgba(0,0,0,.2);display:flex;padding:3px}
+.viewtoggle button{min-height:44px;padding:0 11px;border-radius:19px;font-size:.78rem;font-weight:700;color:var(--muted)}
+.viewtoggle button[aria-pressed=true]{background:var(--indigo);color:#fff}
+.legend{position:absolute;left:12px;bottom:12px;z-index:9;background:rgba(255,255,255,.95);border-radius:12px;padding:8px 10px;width:150px;font-size:.66rem;font-weight:700;box-shadow:0 3px 10px rgba(0,0,0,.2)}
+.legend .bar{height:9px;border-radius:5px;margin:5px 0 2px;background:linear-gradient(90deg,#2f8fd8,#3bb273,#f5d142,#f5923e,#e5383b)}
+.legend .nums{display:flex;justify-content:space-between;font-weight:600;color:var(--muted)}
+.scale{position:absolute;left:176px;bottom:58px;z-index:9;font-size:.65rem;font-weight:700;background:rgba(255,255,255,.85);padding:1px 6px;border-radius:6px}
+.bld{cursor:pointer;transition:opacity .25s}
+.bld:focus-visible{outline:none}
+.bld:focus-visible .roof{stroke:var(--pink);stroke-width:3}
+.lbl{font-size:13px;font-weight:800;fill:#111;paint-order:stroke;stroke:#fff;stroke-width:3.5px;pointer-events:none}
+.lbl2{font-size:10px;font-weight:600;fill:#333;paint-order:stroke;stroke:#fff;stroke-width:3px;pointer-events:none}
+.far .nm{display:none}
+.street{font-size:10px;font-weight:700;fill:#6b7090;letter-spacing:.1em;pointer-events:none}
+.lab{pointer-events:none}
+/* Route path */
+.rcase{fill:none;stroke:#fff;stroke-width:10;stroke-linecap:round;stroke-linejoin:round;vector-effect:non-scaling-stroke}
+.rline{fill:none;stroke:var(--magenta);stroke-width:5;stroke-dasharray:2 11;stroke-linecap:round;stroke-linejoin:round;vector-effect:non-scaling-stroke;animation:march 1s linear infinite}
+@keyframes march{to{stroke-dashoffset:-13}}
+.pulse{animation:pulse 1.6s ease-out infinite;transform-origin:0 0}
+@keyframes pulse{from{transform:scale(.5);opacity:.9}to{transform:scale(2.2);opacity:0}}
+
+/* ===== Bottom sheet + route panel ===== */
+.sheet,.route{position:absolute;left:0;right:0;bottom:0;z-index:20;background:#fff;border-radius:22px 22px 0 0;padding:14px 20px 22px;box-shadow:0 -8px 30px rgba(0,0,0,.25);transform:translateY(105%);transition:transform .35s cubic-bezier(.2,.8,.2,1)}
+.route{max-height:52%;overflow-y:auto}
+.sheet.open,.route.open{transform:none}
+.grab{width:42px;height:5px;border-radius:3px;background:var(--line);margin:0 auto 12px}
+.sheet h3,.route h3{color:var(--indigo);font-size:1.2rem;padding-right:44px}
+.close{position:absolute;right:10px;top:10px;font-size:1.4rem;color:var(--muted)}
+.bigtemp{font-size:2.6rem;font-weight:800;margin:4px 0}
+.chip{display:inline-block;padding:3px 12px;border-radius:99px;color:#fff;font-weight:700;font-size:.8rem;vertical-align:middle;margin-left:8px}
+.chip.Cool{background:var(--cool)}.chip.Warm{background:#a56f00}.chip.Hot{background:var(--hot)}
+.facts{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px}
+.facts div{background:var(--bg);border-radius:12px;padding:10px;font-size:.85rem}
+.facts span{display:block;color:var(--muted);font-size:.72rem}
+.route p{color:var(--muted);font-size:.9rem;margin:2px 0 8px}
+.route ol{padding-left:20px;font-size:.9rem}.route li{margin-bottom:6px}
+.wide{width:100%;margin-top:12px;min-height:48px}
+
+/* ===== Developer panel ===== */
+.dev-panel{position:absolute;top:88px;left:12px;right:68px;z-index:16;background:#fff;border:2px solid var(--indigo);border-radius:16px;padding:12px;box-shadow:0 8px 24px rgba(0,0,0,.3);font-size:.85rem}
+.devrow{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0}
+.devrow button{background:var(--bg);border:1px solid var(--line);border-radius:12px;padding:0 10px;font-size:.78rem;font-weight:600}
+.devrow button[aria-pressed=true]{background:var(--indigo);color:#fff}
+.dev-panel label{display:flex;align-items:center;gap:8px;min-height:44px}
+
+/* ===== List screens ===== */
+.pad{padding:44px 16px 20px}
+.pad h2{color:var(--indigo);font-size:1.5rem;margin-bottom:4px}
+.sub{color:var(--muted);font-size:.9rem;margin-bottom:12px}
+.seg{display:flex;background:var(--bg);border-radius:24px;padding:3px;margin-bottom:12px}
+.seg button{flex:1;border-radius:21px;font-weight:700;font-size:.9rem;color:var(--muted)}
+.seg button[aria-pressed=true]{background:var(--indigo);color:#fff}
+.zone{display:flex;align-items:center;gap:10px;border:1px solid var(--line);border-radius:16px;padding:10px 12px;margin-bottom:10px}
+.zone.anim{animation:pop .35s both}
+@keyframes pop{from{opacity:0;transform:translateY(8px)}}
+.zone .t{font-size:1.3rem;font-weight:800;min-width:58px}
+.zone .n{flex:1;font-weight:700;font-size:.92rem}
+.zone .n small{display:block;color:var(--muted);font-weight:500}
+.btn{background:var(--magenta);color:#fff;border-radius:22px;padding:0 14px;font-weight:700;font-size:.82rem}
+.btn:hover{background:var(--plum)}
+.soon{display:inline-block;background:var(--pink);color:#fff;font-size:.7rem;font-weight:800;padding:2px 9px;border-radius:99px;vertical-align:middle;margin-left:6px}
+.card{background:var(--bg);border-radius:16px;padding:14px;margin-bottom:12px}
+input[type=range]{width:100%;accent-color:var(--magenta);height:44px}
+.row{display:flex;gap:10px}.row .card{flex:1;text-align:center;margin-bottom:0}
+.big{font-size:1.6rem;font-weight:800;color:var(--indigo)}
+.chart{display:flex;align-items:flex-end;gap:8px;height:110px;margin-top:8px}
+.chart div{flex:1;text-align:center;font-size:.65rem;color:var(--muted);display:flex;flex-direction:column;justify-content:flex-end;height:100%}
+.chart i{display:block;background:linear-gradient(var(--pink),var(--magenta));border-radius:6px 6px 0 0;transition:height .4s}
+.community{background:var(--indigo);color:#fff;border-radius:16px;padding:14px;text-align:center}
+.community b{font-size:1.5rem;display:block}
+.progress{height:14px;background:var(--line);border-radius:7px;overflow:hidden;margin:8px 0 4px}
+.progress i{display:block;height:100%;width:68%;background:linear-gradient(90deg,var(--pink),var(--plum))}
+.offer{border:2px dashed var(--pink);border-radius:14px;padding:10px 12px;margin-bottom:8px;font-size:.88rem}
+.offer b{color:var(--plum)}
+.toast{position:absolute;left:50%;bottom:90px;transform:translate(-50%,20px);background:#151a3d;color:#fff;padding:8px 16px;border-radius:20px;font-size:.82rem;opacity:0;transition:.3s;z-index:40;pointer-events:none;max-width:90%;text-align:center}
+.toast.on{opacity:1;transform:translate(-50%,0)}
+
+/* ===== About ===== */
+.about{max-width:1000px;margin:0 auto;padding:10px 16px 50px}
+.about h2{color:var(--indigo);font-size:1.8rem;margin-bottom:14px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px}
+.grid section{background:#fff;border-radius:16px;padding:16px;border-top:5px solid var(--pink)}
+.grid h3{color:var(--magenta);margin-bottom:6px}
+.grid li,.grid p{font-size:.92rem;color:var(--muted)}.grid ul{padding-left:18px}
+
+/* ===== Responsive ===== */
+@media(max-width:860px){
+  .page{grid-template-columns:1fr;gap:20px;justify-items:center;padding:16px 0 0}
+  .info{padding:0 16px;order:2;width:100%}
+  .info h1{font-size:2rem}
+}
+@media(max-width:430px){
+  .page{padding-top:0}
+  .phone{width:100%;height:100vh;height:100dvh;border:0;border-radius:0;box-shadow:none}
+}
+@media(prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+<main class="page">
+  <div class="info">
+    <span class="pill">Prototype demo</span>
+    <h1>The Heat Tracker</h1>
+    <p class="tag">Beat the heat. Save energy. Support Fairfield.</p>
+    <p>Fairfield spends about $1,000,000 a year on aircon. The Heat Tracker shows the live temperature inside public buildings, so you can head to a cooler (or warmer) community centre instead of running your own aircon.</p>
+    <p>Try it: drag the map, pinch or scroll to zoom, tap a building, then press Directions to see your walking route. Presenting? Tap the DEV button on the map to move the pretend user somewhere else.</p>
+  </div>
+
+  <div class="phone" role="application" aria-label="The Heat Tracker app demo">
+    <span class="demo-badge">Demo</span>
+    <div class="screens">
+
+      <!-- MAP -->
+      <section class="screen on" id="screen-map" aria-label="Heat map">
+        <div class="search"><input id="search" type="search" placeholder="Search" aria-label="Search buildings"></div>
+        <button class="poster" id="posterBtn" aria-label="Cool Zone poster: beat the heat. Open Cool Zones">
+          <svg viewBox="0 0 30 30" aria-hidden="true"><rect x="2" y="7" width="26" height="12" rx="3" fill="#fff"/><path d="M6 12h18M6 15h18" stroke="#2B3990" stroke-width="1.5"/><circle cx="15" cy="13" r="12" fill="none" stroke="#E0698F" stroke-width="3"/><path d="M5 23L25 3" stroke="#E0698F" stroke-width="3"/></svg>
+          <svg viewBox="0 0 30 30" aria-hidden="true"><path d="M15 3a8 8 0 0 0-4 15v3h8v-3a8 8 0 0 0-4-15z" fill="#ffd84d"/><rect x="11" y="23" width="8" height="3" rx="1.5" fill="#fff"/></svg>
+          <svg viewBox="0 0 30 30" aria-hidden="true"><circle cx="15" cy="15" r="11" fill="#ffd84d" stroke="#fff" stroke-width="2"/><text x="15" y="20" text-anchor="middle" font-size="14" font-weight="800" fill="#8E2B4E">$</text></svg>
+          <span><b>COOL ZONE – Beat the Heat!</b><small>No aircon needed. Tap to find one.</small></span>
+        </button>
+
+        <svg id="mapsvg" role="img" aria-label="Stylised map of Fairfield with heat overlay. Drag to move, pinch or scroll to zoom.">
+          <defs>
+            <filter id="blur" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="16"/></filter>
+            <filter id="shadow"><feDropShadow dx="8" dy="10" stdDeviation="5" flood-opacity=".35"/></filter>
+          </defs>
+          <g id="world">
+            <rect x="-1500" y="-1500" width="4000" height="3900" fill="#d3d9ee"/>
+            <rect x="0" y="0" width="1000" height="900" fill="#e4ebdf"/>
+            <g id="roads"></g>
+            <g id="layer"></g>
+            <g id="routeLayer"></g>
+            <g id="blabels"></g>
+            <g id="markers"></g>
+          </g>
+        </svg>
+
+        <div class="side">
+          <button class="fab" id="locate" aria-label="Locate me"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="4"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/></svg></button>
+          <button class="fab" id="nav" aria-label="Directions to the best Cool Zone"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l8 19-8-4-8 4z"/></svg></button>
+          <button class="fab" id="zin" aria-label="Zoom in">+</button>
+          <button class="fab" id="zout" aria-label="Zoom out">−</button>
+          <button class="fab" id="compass" aria-label="Compass, tap to reset the map"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="none" stroke="#2B3990" stroke-width="2"/><path d="M12 4l3 8h-6z" fill="#C13F66"/><path d="M12 20l-3-8h6z" fill="#2B3990"/></svg></button>
+          <button class="fab dev" id="devBtn" aria-label="Developer tools" aria-expanded="false">DEV</button>
+        </div>
+
+        <!-- Developer tools -->
+        <div class="dev-panel" id="devPanel" hidden>
+          <b>Developer tools</b>
+          <div>Pretend location: <b id="devLoc"></b></div>
+          <div class="devrow"><button id="devNext">Next location ▶</button></div>
+          <div class="devrow" id="devPresets" role="group" aria-label="Location presets"></div>
+          <label><input type="checkbox" id="devPlace"> Tap the map to place me</label>
+          <div class="devrow"><button data-shift="3">Heatwave +3°</button><button data-shift="-3">Cool change −3°</button></div>
+        </div>
+
+        <div class="legend" aria-label="Heat map overlay legend">HEAT MAP OVERLAY<div class="bar"></div><div class="nums"><span>20°C</span><span>27°C</span><span>34°C+</span></div></div>
+        <div class="scale" id="scale">1:5000</div>
+        <div class="viewtoggle" role="group" aria-label="Map view">
+          <button data-view="2d" aria-pressed="false">2D</button><button data-view="3d" aria-pressed="false">3D</button><button data-view="heat" aria-pressed="true">Heatmap</button>
+        </div>
+
+        <div class="sheet" id="sheet" role="dialog" aria-label="Building details">
+          <div class="grab"></div><button class="close" id="sheetClose" aria-label="Close details">×</button>
+          <h3 id="sName"></h3>
+          <div class="bigtemp"><span id="sTemp"></span><span class="chip" id="sTag"></span></div>
+          <div class="facts"><div><span>How busy</span><b id="sBusy"></b></div><div><span>Opening hours</span><b id="sHours"></b></div></div>
+          <button class="btn wide" id="sDir">Get directions</button>
+        </div>
+
+        <div class="route" id="route" role="dialog" aria-label="Walking directions">
+          <div class="grab"></div><button class="close" id="routeClose" aria-label="End directions">×</button>
+          <h3 id="rName"></h3>
+          <p id="rMeta"></p>
+          <ol id="rSteps"></ol>
+        </div>
+      </section>
+
+      <!-- COOL ZONES -->
+      <section class="screen" id="screen-zones" aria-label="Cool Zones"><div class="pad">
+        <h2>Cool Zones</h2><p class="sub" id="zoneSub">Coolest public places first.</p>
+        <div class="seg" role="group" aria-label="Weather mode"><button data-mode="hot" aria-pressed="true">☀ Hot day</button><button data-mode="cold" aria-pressed="false">❄ Cold day</button></div>
+        <div id="zoneList"></div>
+      </div></section>
+
+      <!-- SAVINGS -->
+      <section class="screen" id="screen-savings" aria-label="Savings"><div class="pad">
+        <h2>Savings</h2><p class="sub">How much do you save by heading to a Cool Zone?</p>
+        <div class="card"><label for="hrs"><b>Hours you'd normally run the aircon: <span id="hrsOut">4</span> h</b></label>
+          <input id="hrs" type="range" min="0" max="12" value="4"></div>
+        <div class="row"><div class="card"><div class="big" id="saveMoney">$4.20</div><small>saved today</small></div><div class="card"><div class="big" id="saveKwh">11.2 kWh</div><small>energy saved</small></div></div>
+        <div class="card" style="margin-top:12px"><b>This week</b><div class="chart" id="chart" role="img" aria-label="Bar chart of savings over the week"></div></div>
+        <div class="community"><small>Fairfield has saved</small><b id="community">$0</b><small>this month (sample data)</small></div>
+      </div></section>
+
+      <!-- REWARDS -->
+      <section class="screen" id="screen-rewards" aria-label="Rewards"><div class="pad">
+        <h2>Rewards <span class="soon">Coming soon</span></h2><p class="sub">Earn points for visiting community centres or getting outside.</p>
+        <div class="card"><b>340 / 500 points</b><div class="progress" role="progressbar" aria-valuenow="68" aria-valuemin="0" aria-valuemax="100" aria-label="Points progress"><i></i></div><small>160 points to your next reward</small></div>
+        <div class="offer"><b>Free iced coffee</b> – 200 points, Oakwood café</div>
+        <div class="offer"><b>$5 voucher</b> – 350 points, Fairfield shops</div>
+        <div class="offer"><b>Free pool entry</b> – 500 points, Leisure Centre</div>
+        <h2 style="margin-top:16px;font-size:1.25rem">Local Offers <span class="soon">Coming soon</span></h2>
+        <p class="sub">Pop up when you check in at a Cool Zone.</p>
+        <div class="offer"><b>Bean There Café</b><br>Buy one, get one free iced coffee while you cool down.</div>
+        <div class="offer"><b>Oakwood Food Court</b><br>10% off lunch combos before 2pm.</div>
+        <div class="offer"><b>Fairfield Fashion</b><br>Summer sale – show this offer in store.</div>
+      </div></section>
+    </div>
+
+    <nav class="tabs" role="tablist" aria-label="Main">
+      <button role="tab" aria-selected="true" data-tab="map"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 4L3 6v14l6-2 6 2 6-2V4l-6 2z"/></svg>Map</button>
+      <button role="tab" aria-selected="false" data-tab="zones"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20M4 6l16 12M20 6L4 18"/></svg>Cool Zones</button>
+      <button role="tab" aria-selected="false" data-tab="savings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v10M9 10h5a2 2 0 010 4H9"/></svg>Savings</button>
+      <button role="tab" aria-selected="false" data-tab="rewards"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l2.7 5.5 6 .9-4.4 4.2 1 6-5.3-2.8-5.3 2.8 1-6L3.3 9.4l6-.9z"/></svg>Rewards</button>
+    </nav>
+    <div class="toast" id="toast" role="status"></div>
+  </div>
+</main>
+
+<section class="about" aria-labelledby="aboutH">
+  <h2 id="aboutH">About this project</h2>
+  <div class="grid">
+    <section><h3>The problem</h3><p>Fairfield wastes energy: about $1,000,000 a year on aircon, lights left on at night, and too few solar panels.</p></section>
+    <section><h3>Our solution</h3><p>The Heat Tracker shows which public building is coolest (or warmest), so people can go there instead of running their own aircon.</p></section>
+    <section><h3>Goal</h3><p>Lift visits to shopping centres and community centres by at least 10%, bringing money to local businesses.</p></section>
+    <section><h3>Challenges we faced</h3><ul><li>Data</li><li>Designing the app clearly</li><li>Poster changes</li><li>Teamwork</li></ul></section>
+    <section><h3>Future directions</h3><ul><li>Rewards for getting outside</li><li>Business advertisements</li></ul></section>
+  </div>
+</section>
+
+<script>
+/* =====================================================================
+   FAKE SAMPLE DATA – edit freely. Units: 1 map unit = 1 metre.
+   Temperatures are in degrees Celsius. type: mall|apt|park|lot|office|public
+   ===================================================================== */
+const ROADS = [                         // axis-aligned roads (centre lines, 28 m wide)
+  {name:"High Street",     x1:0,  y1:250, x2:1000, y2:250},
+  {name:"Park Avenue",     x1:0,  y1:600, x2:1000, y2:600},
+  {name:"Central Avenue",  x1:450,y1:0,   x2:450,  y2:900},
+  {name:"Station Street",  x1:780,y1:0,   x2:780,  y2:900}
+];
+const BUILDINGS = [
+  {id:"mall",  name:"Oakwood Shopping Centre", x:40, y:50,  w:250,h:150,temp:33,type:"mall",  busy:"Very busy",hours:"9am – 9pm",zone:true},
+  {id:"car1",  name:"Car Park 1",              x:310,y:60,  w:110,h:130,temp:31,type:"lot",   busy:"Moderate", hours:"24 hours"},
+  {id:"gables",name:"The Gables Apartments",   x:490,y:50,  w:120,h:140,temp:30,type:"apt",   busy:"Quiet",    hours:"Residents only"},
+  {id:"office",name:"Office 3",                x:640,y:60,  w:110,h:130,temp:28,type:"office",busy:"Moderate", hours:"8am – 6pm"},
+  {id:"station",name:"Fairfield Station",      x:810,y:60,  w:150,h:130,temp:29,type:"office",busy:"Busy",     hours:"4am – midnight"},
+  {id:"park",  name:"Central Park",            x:40, y:290, w:230,h:250,temp:23,type:"park",  busy:"Busy",     hours:"Always open",zone:true},
+  {id:"lib",   name:"Fairfield Library",       x:310,y:300, w:110,h:120,temp:22,type:"public",busy:"Quiet",    hours:"10am – 7pm",zone:true},
+  {id:"centre",name:"Fairfield Community Centre",x:490,y:300,w:150,h:130,temp:23,type:"public",busy:"Moderate",hours:"7am – 9pm",zone:true},
+  {id:"car2",  name:"Car Park 2",              x:490,y:460, w:150,h:90, temp:32,type:"lot",   busy:"Quiet",    hours:"24 hours"},
+  {id:"school",name:"Fairfield Public School", x:660,y:300, w:100,h:230,temp:27,type:"office",busy:"Busy",     hours:"8am – 3:30pm"},
+  {id:"pool",  name:"Fairfield Leisure Centre",x:810,y:300, w:150,h:200,temp:24,type:"public",busy:"Moderate", hours:"6am – 9pm",zone:true},
+  {id:"homes", name:"Fairfield Homes",         x:40, y:640, w:250,h:200,temp:29,type:"apt",   busy:"Quiet",    hours:"Residents only"},
+  {id:"shops", name:"Fairfield Marketplace",   x:490,y:650, w:250,h:180,temp:31,type:"mall",  busy:"Busy",     hours:"9am – 8pm",zone:true},
+  {id:"solar", name:"Community Solar Hub",     x:810,y:650, w:150,h:180,temp:33,type:"office",busy:"Quiet",    hours:"Always open"}
+];
+/* Developer presets: where the pretend user can be. */
+const LOCATIONS = [
+  {name:"Home (Park Avenue)", x:150,y:600},
+  {name:"Fairfield Station",  x:870,y:250},
+  {name:"Public School",      x:775,y:450},
+  {name:"Bus stop (High St)", x:100,y:250},
+  {name:"Solar Hub",          x:870,y:600}
+];
+const WEEK_FACTORS=[0.6,0.9,1.0,0.7,1.2,1.4,0.8], DAYS=["M","T","W","T","F","S","S"];
+const KWH_PER_HOUR=3.5, PRICE=0.30, WALK_M_PER_MIN=80;
+
+/* ===== Helpers ===== */
+const $=(s,r=document)=>r.querySelector(s), $$=(s,r=document)=>[...r.querySelectorAll(s)];
+const NS="http://www.w3.org/2000/svg", clamp=(v,a,b)=>Math.min(b,Math.max(a,v));
+function el(n,attrs,parent){const e=document.createElementNS(NS,n);for(const k in attrs)e.setAttribute(k,attrs[k]);parent&&parent.appendChild(e);return e;}
+const STOPS=[[20,[47,143,216]],[24,[59,178,115]],[28,[245,209,66]],[31,[245,146,62]],[34,[229,56,63]]];
+function heat(t){
+  if(t<=STOPS[0][0])return`rgb(${STOPS[0][1]})`;
+  for(let i=1;i<STOPS.length;i++){const[a,ca]=STOPS[i-1],[b,cb]=STOPS[i];
+    if(t<=b){const f=(t-a)/(b-a);return`rgb(${ca.map((c,k)=>Math.round(c+(cb[k]-c)*f))})`;}}
+  return`rgb(${STOPS[4][1]})`;
+}
+const tag=t=>t<25?"Cool":t<30?"Warm":"Hot";
+const byId=id=>BUILDINGS.find(b=>b.id===id);
+const fmtDist=d=>d<1000?`${Math.max(10,Math.round(d/10)*10)} m`:`${(d/1000).toFixed(1)} km`;
+
+/* ===== Routing along the road network ===== */
+ROADS.forEach(r=>r.h=r.y1===r.y2);
+function snap(p){                       // nearest point on any road
+  let best=null;
+  ROADS.forEach((r,i)=>{
+    const pt=r.h?{x:clamp(p.x,r.x1,r.x2),y:r.y1}:{x:r.x1,y:clamp(p.y,r.y1,r.y2)};
+    const d=Math.hypot(pt.x-p.x,pt.y-p.y);
+    if(!best||d<best.d)best={road:i,pt,d};
+  });
+  return best;
+}
+BUILDINGS.forEach(b=>{                  // precompute each building's door
+  b.cx=b.x+b.w/2;b.cy=b.y+b.h/2;
+  b.snap=snap({x:b.cx,y:b.cy});
+  b.door={x:clamp(b.snap.pt.x,b.x,b.x+b.w),y:clamp(b.snap.pt.y,b.y,b.y+b.h)};
+});
+const dirName=(dx,dy)=>dx>0?"east":dx<0?"west":dy<0?"north":"south";
+
+function plan(from,b){                  // shortest walking route (Dijkstra)
+  const s=snap(from),e=b.snap;
+  const pts=ROADS.map(r=>[{x:r.x1,y:r.y1},{x:r.x2,y:r.y2}]);
+  for(let i=0;i<ROADS.length;i++)for(let j=i+1;j<ROADS.length;j++){      // intersections
+    const A=ROADS[i],B=ROADS[j];if(A.h===B.h)continue;
+    const H=A.h?A:B,V=A.h?B:A;
+    if(V.x1>=H.x1&&V.x1<=H.x2&&H.y1>=V.y1&&H.y1<=V.y2){const p={x:V.x1,y:H.y1};pts[i].push(p);pts[j].push(p);}
+  }
+  pts[s.road].push(s.pt);pts[e.road].push(e.pt);
+  const key=p=>p.x+","+p.y,adj={},P={};
+  const link=(a,b,road)=>{const d=Math.abs(a.x-b.x)+Math.abs(a.y-b.y);if(!d)return;
+    const ka=key(a),kb=key(b);P[ka]=a;P[kb]=b;
+    (adj[ka]=adj[ka]||[]).push({to:kb,d,road});(adj[kb]=adj[kb]||[]).push({to:ka,d,road});};
+  pts.forEach((arr,i)=>{arr.sort(ROADS[i].h?(a,b)=>a.x-b.x:(a,b)=>a.y-b.y);for(let k=0;k<arr.length-1;k++)link(arr[k],arr[k+1],i);});
+  const ks=key(s.pt),ke=key(e.pt),dist={[ks]:0},prev={},done=new Set();
+  for(;;){let u=null;for(const k in dist)if(!done.has(k)&&(u===null||dist[k]<dist[u]))u=k;
+    if(u===null||u===ke)break;done.add(u);
+    (adj[u]||[]).forEach(ed=>{const nd=dist[u]+ed.d;if(dist[ed.to]===undefined||nd<dist[ed.to]){dist[ed.to]=nd;prev[ed.to]={from:u,road:ed.road};}});}
+  const chain=[ke],roads=[];                                              // walk back from the destination
+  for(let k=ke;k!==ks&&prev[k];k=prev[k].from){chain.unshift(prev[k].from);roads.unshift(prev[k].road);}
+  const nodes=chain.map(k=>P[k]||s.pt);
+  const first=Math.hypot(from.x-s.pt.x,from.y-s.pt.y), last=Math.hypot(e.pt.x-b.door.x,e.pt.y-b.door.y);
+  const total=first+(dist[ke]||0)+last;
+  // Turn-by-turn steps: merge consecutive edges on the same road
+  const segs=[];
+  for(let i=1;i<nodes.length;i++){
+    const a=nodes[i-1],c=nodes[i],dx=Math.sign(c.x-a.x),dy=Math.sign(c.y-a.y),len=Math.abs(c.x-a.x)+Math.abs(c.y-a.y);
+    const l=segs[segs.length-1];
+    if(l&&l.road===roads[i-1]&&l.dx===dx&&l.dy===dy)l.len+=len;else segs.push({road:roads[i-1],dx,dy,len});
+  }
+  const steps=[];
+  if(first>20)steps.push(`Walk to ${ROADS[s.road].name} (${fmtDist(first)})`);
+  segs.forEach((g,i)=>{
+    if(i===0&&first<=20)steps.push(`Head ${dirName(g.dx,g.dy)} on ${ROADS[g.road].name} (${fmtDist(g.len)})`);
+    else if(i===0)steps.push(`Head ${dirName(g.dx,g.dy)} on ${ROADS[g.road].name} (${fmtDist(g.len)})`);
+    else{const p=segs[i-1],cross=p.dx*g.dy-p.dy*g.dx;
+      steps.push(`Turn ${cross>0?"right":"left"} onto ${ROADS[g.road].name} (${fmtDist(g.len)})`);}
+  });
+  steps.push(`Arrive at ${b.name}`);
+  const path=[from,s.pt,...nodes,e.pt,b.door].filter((p,i,a)=>!i||p.x!==a[i-1].x||p.y!==a[i-1].y);
+  return{pts:path,dist:total,mins:Math.max(1,Math.round(total/WALK_M_PER_MIN)),steps};
+}
+
+/* ===== Map state, pan and zoom ===== */
+const svg=$("#mapsvg"),world=$("#world");
+let s=0.85,tx=0,ty=0,view="heat",filter="",user={...LOCATIONS[0]},locIdx=0,routeId=null,devPlace=false;
+function applyView(){
+  world.style.transform=`translate(${tx}px,${ty}px) scale(${s})`;
+  $$(".lab").forEach(g=>g.setAttribute("transform",`translate(${g.dataset.x} ${g.dataset.y}) scale(${1/s})`));   // keep labels a steady size
+  svg.classList.toggle("far",s<.55);
+  $("#scale").textContent="1:"+(Math.round(5000/s/50)*50);
+}
+function clampPan(){const r=svg.getBoundingClientRect();tx=clamp(tx,80-1000*s,r.width-80);ty=clamp(ty,120-900*s,r.height-120);}
+function zoomAt(cx,cy,f){const ns=clamp(s*f,.3,2.5);f=ns/s;tx=cx-(cx-tx)*f;ty=cy-(cy-ty)*f;s=ns;clampPan();applyView();}
+function glide(){world.classList.add("glide");applyView();setTimeout(()=>world.classList.remove("glide"),750);}
+function centreOn(p,z){const r=svg.getBoundingClientRect();if(z)s=z;tx=r.width/2-p.x*s;ty=r.height*.5-p.y*s;clampPan();glide();}
+function fitTo(pts){                    // zoom so a route fits above the bottom panel
+  const r=svg.getBoundingClientRect(),xs=pts.map(p=>p.x),ys=pts.map(p=>p.y);
+  const x0=Math.min(...xs),x1=Math.max(...xs),y0=Math.min(...ys),y1=Math.max(...ys);
+  const top=150,bot=Math.min(320,r.height*.45),aw=r.width-70,ah=r.height-top-bot;
+  s=clamp(Math.min(aw/Math.max(x1-x0,80),ah/Math.max(y1-y0,80)),.3,1.6);
+  tx=r.width/2-(x0+x1)/2*s;ty=top+ah/2-(y0+y1)/2*s;glide();
+}
+/* Pointer handling: one finger/mouse = pan, two fingers = pinch, wheel = zoom */
+const ptrs=new Map();let acc=0,moved=false,pinch=0;
+const pDist=()=>{const[a,b]=[...ptrs.values()];return Math.hypot(a.x-b.x,a.y-b.y);};
+svg.addEventListener("pointerdown",e=>{ptrs.set(e.pointerId,{x:e.clientX,y:e.clientY});if(ptrs.size===1){acc=0;moved=false;}if(ptrs.size===2)pinch=pDist();});
+window.addEventListener("pointermove",e=>{
+  const p=ptrs.get(e.pointerId);if(!p)return;
+  const dx=e.clientX-p.x,dy=e.clientY-p.y;p.x=e.clientX;p.y=e.clientY;
+  if(ptrs.size===1){acc+=Math.abs(dx)+Math.abs(dy);if(acc>6)moved=true;tx+=dx;ty+=dy;clampPan();applyView();}
+  else if(ptrs.size===2){const d=pDist(),[a,b]=[...ptrs.values()],r=svg.getBoundingClientRect();
+    zoomAt((a.x+b.x)/2-r.left,(a.y+b.y)/2-r.top,d/pinch);pinch=d;moved=true;}
+});
+["pointerup","pointercancel"].forEach(t=>window.addEventListener(t,e=>{ptrs.delete(e.pointerId);setTimeout(()=>{if(!ptrs.size)moved=false;},0);}));
+svg.addEventListener("wheel",e=>{e.preventDefault();const r=svg.getBoundingClientRect();zoomAt(e.clientX-r.left,e.clientY-r.top,Math.exp(-e.deltaY*.0015));},{passive:false});
+svg.addEventListener("click",e=>{                                  // dev: tap map to place the user
+  if(!devPlace||moved)return;const r=svg.getBoundingClientRect();
+  setUser({x:clamp((e.clientX-r.left-tx)/s,0,1000),y:clamp((e.clientY-r.top-ty)/s,0,900)},"Location moved");
+});
+const vc=()=>{const r=svg.getBoundingClientRect();return[r.width/2,r.height/2];};
+$("#zin").onclick=()=>zoomAt(...vc(),1.35);
+$("#zout").onclick=()=>zoomAt(...vc(),1/1.35);
+
+/* ===== Drawing ===== */
+function drawRoads(){
+  const L=$("#roads"),lab=[];
+  ROADS.forEach(r=>{
+    el("rect",r.h?{x:r.x1,y:r.y1-14,width:r.x2-r.x1,height:28,fill:"#fff",stroke:"#c9cfe0"}:{x:r.x1-14,y:r.y1,width:28,height:r.y2-r.y1,fill:"#fff",stroke:"#c9cfe0"},L);
+    el("path",{d:`M${r.x1} ${r.y1}L${r.x2} ${r.y2}`,stroke:"#E0698F","stroke-width":1.5,"stroke-dasharray":"8 6",fill:"none","vector-effect":"non-scaling-stroke"},L);
+  });
+  [["High Street",100,250,0],["High Street",620,250,0],["Park Avenue",100,600,0],["Park Avenue",620,600,0],["Central Avenue",450,100,-90],["Central Avenue",450,440,-90],["Station Street",780,340,-90],["Station Street",780,760,-90]].forEach(([n,x,y,rot])=>{
+    const g=el("g",{class:"lab","data-x":x,"data-y":y},L),t=el("text",{class:"street","text-anchor":"middle",y:3,transform:`rotate(${rot})`},g);t.textContent=n.toUpperCase();
+  });
+}
+function drawMap(){
+  const L=$("#layer"),B=$("#blabels");L.innerHTML="";B.innerHTML="";
+  BUILDINGS.forEach(b=>{
+    const match=!filter||b.name.toLowerCase().includes(filter),d=view==="3d"?14:0;
+    const g=el("g",{class:"bld",tabindex:0,role:"button","aria-label":`${b.name}, ${Math.round(b.temp)} degrees Celsius`},L);
+    g.style.opacity=match?1:.2;
+    const base=b.type==="park"?"#9fd39a":b.type==="lot"?"#9aa0b5":"#f1f2f8";
+    if(d)el("rect",{x:b.x+d,y:b.y+d,width:b.w,height:b.h,fill:"#6d7399",filter:"url(#shadow)",rx:5},g);
+    const roof=el("rect",{class:"roof",x:b.x,y:b.y,width:b.w,height:b.h,rx:5,fill:base,stroke:"#8a90b0","stroke-width":1.5},g);
+    if(b.type==="park")for(let i=0;i<9;i++)el("circle",{cx:b.x+30+(i*67)%(b.w-50),cy:b.y+35+(i*53)%(b.h-60),r:12,fill:"#5aa86a"},g);
+    if(b.type==="lot")for(let x=b.x+18;x<b.x+b.w-8;x+=20)el("path",{d:`M${x} ${b.y+10}v${b.h-20}`,stroke:"#fff","stroke-width":2,"stroke-dasharray":"8 5"},g);
+    if(b.id==="solar")for(let i=0;i<6;i++)el("rect",{x:b.x+12+(i%3)*44,y:b.y+14+Math.floor(i/3)*70,width:38,height:56,fill:"#2B3990",opacity:.7,rx:3},g);
+    if(view==="heat"){el("ellipse",{cx:b.cx,cy:b.cy,rx:b.w*.65,ry:b.h*.65,fill:heat(b.temp),opacity:.78,filter:"url(#blur)"},g);roof.setAttribute("fill-opacity",.4);}
+    const open=()=>{if(!moved&&!devPlace)openSheet(b.id);};
+    g.addEventListener("click",open);
+    g.addEventListener("keydown",e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();openSheet(b.id);}});
+    const lab=el("g",{class:"lab","data-x":b.cx,"data-y":b.cy},B);lab.style.opacity=match?1:.2;
+    el("text",{class:"lbl","text-anchor":"middle"},lab).textContent=`${Math.round(b.temp)}°C`;
+    el("text",{class:"lbl2 nm","text-anchor":"middle",y:13},lab).textContent=b.name.replace("Fairfield ","");
+  });
+  drawMarkers();applyView();
+}
+function drawMarkers(){                 // "you are here" dot + destination pin
+  const M=$("#markers");M.innerHTML="";
+  const u=el("g",{class:"lab","data-x":user.x,"data-y":user.y},M);
+  el("circle",{class:"pulse",r:14,fill:"rgba(43,57,144,.3)"},u);
+  el("circle",{r:8,fill:"#2B3990",stroke:"#fff","stroke-width":3},u);
+  if(routeId){const b=byId(routeId),p=el("g",{class:"lab","data-x":b.door.x,"data-y":b.door.y},M);
+    el("path",{d:"M0 0C-8-10-13-15-13-22a13 13 0 0126 0c0 7-5 12-13 22z",fill:"#C13F66",stroke:"#fff","stroke-width":2},p);
+    el("circle",{cy:-22,r:5,fill:"#fff"},p);}
+}
+
+/* ===== Bottom sheet and directions ===== */
+let openId=null;
+function openSheet(id){openId=id;endRoute(true);fillSheet();$("#sheet").classList.add("open");}
+function fillSheet(){
+  const b=byId(openId);if(!b)return;
+  $("#sName").textContent=b.name;$("#sTemp").textContent=`${b.temp.toFixed(1)}°C`;
+  const t=$("#sTag");t.textContent=tag(b.temp);t.className="chip "+tag(b.temp);
+  $("#sBusy").textContent=b.busy;$("#sHours").textContent=b.hours;
+}
+$("#sheetClose").onclick=()=>{$("#sheet").classList.remove("open");openId=null;};
+$("#sDir").onclick=()=>startRoute(openId);
+
+function startRoute(id){routeId=id;openId=null;$("#sheet").classList.remove("open");refreshRoute(true);}
+function endRoute(quiet){routeId=null;$("#routeLayer").innerHTML="";$("#route").classList.remove("open");drawMarkers();applyView();}
+$("#routeClose").onclick=()=>endRoute();
+function refreshRoute(fit){
+  const lay=$("#routeLayer");lay.innerHTML="";
+  if(!routeId)return;
+  const b=byId(routeId),p=plan(user,b),pts=p.pts.map(q=>q.x+","+q.y).join(" ");
+  el("polyline",{points:pts,class:"rcase"},lay);el("polyline",{points:pts,class:"rline"},lay);
+  $("#rName").textContent=`To ${b.name}`;
+  $("#rMeta").innerHTML=`<b>${fmtDist(p.dist)} · ${p.mins} min walk</b> · it's <b id="rTemp">${b.temp.toFixed(1)}°C</b> inside`;
+  $("#rSteps").innerHTML=p.steps.map(t=>`<li>${t}</li>`).join("");
+  $("#route").classList.add("open");
+  drawMarkers();applyView();
+  if(fit)fitTo(p.pts);
+}
+
+/* ===== Controls ===== */
+$("#search").addEventListener("input",e=>{filter=e.target.value.trim().toLowerCase();drawMap();});
+$$(".viewtoggle button").forEach(btn=>btn.onclick=()=>{view=btn.dataset.view;$$(".viewtoggle button").forEach(x=>x.setAttribute("aria-pressed",x===btn));drawMap();});
+$("#compass").onclick=()=>{s=.85;centreOn(user);toast("Map reset");};
+$("#locate").onclick=()=>{centreOn(user,Math.max(s,1));toast("You are here");};
+$("#nav").onclick=()=>{                 // route to the best Cool Zone (coolest in hot mode)
+  const z=BUILDINGS.filter(b=>b.zone).sort((a,b)=>mode==="hot"?a.temp-b.temp:b.temp-a.temp)[0];
+  toast(`Heading to ${z.name}`);startRoute(z.id);
+};
+$("#posterBtn").onclick=()=>showTab("zones");
+function showTab(n){$$(".screen").forEach(x=>x.classList.toggle("on",x.id==="screen-"+n));$$(".tabs button").forEach(b=>b.setAttribute("aria-selected",b.dataset.tab===n));}
+$$(".tabs button").forEach(b=>b.onclick=()=>showTab(b.dataset.tab));
+
+/* ===== Developer tools ===== */
+function setUser(p,msg){
+  user={x:p.x,y:p.y};
+  const i=LOCATIONS.findIndex(l=>l.x===p.x&&l.y===p.y);locIdx=i<0?locIdx:i;
+  $("#devLoc").textContent=i<0?"Custom spot":LOCATIONS[i].name;
+  $$("#devPresets button").forEach((b,k)=>b.setAttribute("aria-pressed",k===i));
+  drawMarkers();applyView();drawZones(false);
+  if(routeId)refreshRoute(true);
+  if(msg)toast(msg);
+}
+$("#devPresets").innerHTML=LOCATIONS.map((l,i)=>`<button data-i="${i}" aria-pressed="false">${l.name}</button>`).join("");
+$$("#devPresets button").forEach(b=>b.onclick=()=>{const l=LOCATIONS[+b.dataset.i];setUser(l,"Moved to "+l.name);if(!routeId)centreOn(l);});
+$("#devNext").onclick=()=>{const l=LOCATIONS[(locIdx+1)%LOCATIONS.length];locIdx=LOCATIONS.indexOf(l);setUser(l,"Moved to "+l.name);if(!routeId)centreOn(l);};
+$("#devBtn").onclick=()=>{const p=$("#devPanel");p.hidden=!p.hidden;$("#devBtn").setAttribute("aria-expanded",!p.hidden);};
+$("#devPlace").onchange=e=>{devPlace=e.target.checked;svg.style.cursor=devPlace?"crosshair":"";if(devPlace)toast("Tap the map to place yourself");};
+$$("[data-shift]").forEach(b=>b.onclick=()=>{BUILDINGS.forEach(x=>x.temp=clamp(x.temp+ +b.dataset.shift,16,42));drawMap();drawZones(false);fillSheet();toast(+b.dataset.shift>0?"Heatwave: +3°C":"Cool change: −3°C");});
+
+/* ===== Cool Zones list ===== */
+let mode="hot";
+function drawZones(animate){
+  const list=BUILDINGS.filter(b=>b.zone).sort((a,b)=>mode==="hot"?a.temp-b.temp:b.temp-a.temp);
+  $("#zoneSub").textContent=mode==="hot"?"Coolest public places first.":"Warmest public places first.";
+  $("#zoneList").innerHTML=list.map((b,i)=>{const p=plan(user,b);
+    return`<div class="zone ${animate?"anim":""}" style="animation-delay:${i*60}ms">
+    <div class="t" style="color:${heat(b.temp)}">${b.temp.toFixed(0)}°C</div>
+    <div class="n">${b.name}<small>${fmtDist(p.dist)} · ${p.mins} min walk</small></div>
+    <button class="btn" data-dir="${b.id}" aria-label="Directions to ${b.name}">Directions</button></div>`}).join("");
+  $$("[data-dir]").forEach(x=>x.onclick=()=>{showTab("map");startRoute(x.dataset.dir);});
+}
+$$("[data-mode]").forEach(btn=>btn.onclick=()=>{mode=btn.dataset.mode;$$("[data-mode]").forEach(x=>x.setAttribute("aria-pressed",x===btn));drawZones(true);});
+
+/* ===== Savings ===== */
+function drawSavings(){
+  const h=+$("#hrs").value;$("#hrsOut").textContent=h;
+  const kwh=h*KWH_PER_HOUR*0.8;            // assume 80% of aircon use is avoided
+  $("#saveKwh").textContent=kwh.toFixed(1)+" kWh";$("#saveMoney").textContent="$"+(kwh*PRICE).toFixed(2);
+  $("#chart").innerHTML=WEEK_FACTORS.map((f,i)=>{const v=kwh*PRICE*f;return`<div><i style="height:${Math.max(4,v*14)}px" title="$${v.toFixed(2)}"></i>${DAYS[i]}</div>`}).join("");
+}
+$("#hrs").addEventListener("input",drawSavings);
+let community=48250;const drawCommunity=()=>$("#community").textContent="$"+Math.round(community).toLocaleString("en-AU");
+
+/* ===== Toast ===== */
+let tt;function toast(m){const t=$("#toast");t.textContent=m;t.classList.add("on");clearTimeout(tt);tt=setTimeout(()=>t.classList.remove("on"),2200);}
+
+/* ===== Live tick: temperatures drift every few seconds ===== */
+setInterval(()=>{
+  BUILDINGS.forEach(b=>b.temp=clamp(b.temp+(Math.random()-.5)*.6,16,42));
+  community+=Math.random()*6;
+  drawMap();drawZones(false);drawCommunity();fillSheet();
+  if(routeId)$("#rTemp").textContent=byId(routeId).temp.toFixed(1)+"°C";
+},3000);
+
+/* ===== Start up ===== */
+drawRoads();drawMap();drawZones(true);drawSavings();drawCommunity();
+$("#devLoc").textContent=LOCATIONS[0].name;$$("#devPresets button")[0].setAttribute("aria-pressed",true);
+requestAnimationFrame(()=>{const r=svg.getBoundingClientRect();tx=r.width/2-user.x*s;ty=r.height*.55-user.y*s;clampPan();applyView();});
+</script>
+</body>
+</html>
